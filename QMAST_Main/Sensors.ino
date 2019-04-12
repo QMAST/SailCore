@@ -75,7 +75,7 @@ void checkSensors() {
     bool dataAvailable = true;
     while (Wire.available() < 5) {
       // Wait for all bytes to come back but if it takes longer than 500ms ignore sensor
-      if (millis() - waitTimerMillis >= 200) {
+      if (millis() - waitTimerMillis >= 30) {
         dataAvailable = false;
         break;
       }
@@ -90,30 +90,31 @@ void checkSensors() {
       angle16 <<= 8;
       angle16 += low_byte;
       setSensor("CP", String(angle16 / 10));
-    }
 
-    // Update Temperature
-    Wire.beginTransmission(CMPS11_ADDRESS);  //starts communication with CMPS11
-    Wire.write(24);                     //Sends the register we wish to start reading from
-    Wire.endTransmission();
-    Wire.requestFrom(CMPS11_ADDRESS, 2);
-    waitTimerMillis = millis();
-    dataAvailable = true;
-    while (Wire.available() < 2) {
-      // Wait for all bytes to come back but if it takes longer than 500ms ignore sensor
-      if (millis() - waitTimerMillis >= 100) {
-        dataAvailable = false;
-        break;
+      // If the previous wire transmission didn't work, don't try again
+      // Update Temperature
+      Wire.beginTransmission(CMPS11_ADDRESS);  //starts communication with CMPS11
+      Wire.write(24);                     //Sends the register we wish to start reading from
+      Wire.endTransmission();
+      Wire.requestFrom(CMPS11_ADDRESS, 2);
+      waitTimerMillis = millis();
+      dataAvailable = true;
+      while (Wire.available() < 2) {
+        // Wait for all bytes to come back but if it takes longer than 500ms ignore sensor
+        if (millis() - waitTimerMillis >= 100) {
+          dataAvailable = false;
+          break;
+        }
       }
-    }
-    if (dataAvailable) {
-      high_byte = Wire.read();
-      low_byte = Wire.read();
-      temp16 = high_byte;                 // Calculate 16 bit temperature
-      temp16 <<= 8;
-      temp16 += low_byte;
+      if (dataAvailable) {
+        high_byte = Wire.read();
+        low_byte = Wire.read();
+        temp16 = high_byte;                 // Calculate 16 bit temperature
+        temp16 <<= 8;
+        temp16 += low_byte;
 
-      setSensor("TM", String(21.0 + (float) temp16 / 8.)); // Calculate the temperature (8LSB/C) + guess intercept
+        setSensor("TM", String(21.0 + (float) temp16 / 8.)); // Calculate the temperature (8LSB/C) + guess intercept
+      }
     }
 
     // Update GPS
@@ -140,7 +141,7 @@ void checkSensors() {
     float windSpeed = 32.4 * (voltage - 0.4) / 1.6;
 
     //DEBUG_PRINTLN(voltage);
-    
+
     if (voltage >= 0.4) {
       setSensor("WS", String(windSpeed));
     } else {

@@ -45,7 +45,7 @@ void loop() {
   checkSensors(); // Update the stored sensor states if new info is available
   sendSensors(); // Send sensor data to XBee + RPi if appropriate
   heartbeat(); // Send Mega "heartbeat" indicating mode and queries if RPi + XBee are connected
-  //checkRC(); // Update the winch and rudder position if RC is enabled
+  checkRC(); // Update the winch and rudder position if RC is enabled
 }
 
 void heartbeat() {
@@ -63,9 +63,14 @@ void heartbeat() {
   // Otherwise, send a query transmission one query period from the last response time to check if the device is still alive
   // If either device does not respond within 2 query periods, it is disconnected/dead
 
-  // Check if the RPi is connected/alive
-  // One query period for the RPi is 20 seconds
-  if (rpiLastResponse == 0 || currentMillis - rpiLastResponse >= 20000) {
+  if (rpiLastResponse != 0 && currentMillis - rpiLastResponse >= 10000 && mode == 2) {
+    DEBUG_PRINTLN(F("RPi not responding, AUTOPILOT DISENGAGE"));
+    sendTransmission(PORT_XBEE, "A9", "AUTOPILOT DISENGAGE: RPi Dead");
+    setAutopilot(false); // Disable autopilot and enable RC if RPi fails
+    sendTransmission(PORT_XBEE, "09", 0); // Notify that RPi is offline
+  } else if (rpiLastResponse == 0 || currentMillis - rpiLastResponse >= 20000) {
+    // Check if the RPi is connected/alive
+    // One query period for the RPi is 20 seconds
     // If the RPi has never responded or if it's last response was over 20 seconds ago (two query periods)
     // Send query transmissions every 5 seconds
     if (currentMillis - rpiLastQuery >= 5000) {
@@ -74,11 +79,7 @@ void heartbeat() {
       sendTransmission(PORT_XBEE, "09", 0); // Notify that RPi is offline
       rpiLastQuery = currentMillis;
     }
-    if(rpiLastResponse != 0 && currentMillis - rpiLastResponse >= 20000 && mode == 2){
-      DEBUG_PRINTLN(F("RPi not responding, AUTOPILOT DISENGAGE"));
-      setAutopilot(false); // Disable autopilot and enable RC if RPi fails
-    }
-  } else if (currentMillis - rpiLastQuery >= 10000 && currentMillis - rpiLastQuery >= 5000) {
+  } else if ((currentMillis - rpiLastQuery >= 10000 && currentMillis - rpiLastQuery >= 5000) || (mode == 2 && currentMillis - rpiLastResponse >= 5000)) {
     // If the RPi responded 10 seconds ago, send another query transmission to check if it is still alive
     sendTransmission(PORT_RPI, "00", "?");
     DEBUG_PRINTLN(F("Checking RPi State"));
@@ -110,6 +111,7 @@ void setAutopilot(bool state) {
     DEBUG_PRINTLN(F("Exiting autopilot"));
   }
   setRCEnabled(!state);
+  sendTransmission(PORT_XBEE, "00", String(mode));
 }
 
 void setLastResponse(int port) {

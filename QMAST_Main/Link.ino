@@ -56,6 +56,7 @@ void executeRPiTransmission(String code, String data) {
   if (code.equals("A0")) {
     if (data.equals("1")) setAutopilot(true); // Enter autopilot
     if (data.equals("0")) setAutopilot(false); // Exit autopilot
+    setLastResponse(PORT_RPI);
   } else if (code.equals("05") || code.equals("07") || code.equals("A1") || code.equals("A2") || code.equals("A3") || code.equals("A8") || code.equals("A9")) {
     // Messages sent by the RPi to be relayed to XBee transparently
     sendTransmission(PORT_XBEE, code, data);

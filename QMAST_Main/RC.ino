@@ -11,7 +11,7 @@
 unsigned long lastRCMillis;
 
 int oldWinchPos = 0; // variable to store previous winch position for exponential smoothing
-int oldRudderPos = 0; // variable to store previous rudder position for exponential smoothing
+int oldRudderPos = RUDDER_CENTER; // variable to store previous rudder position for exponential smoothing
 
 bool rcEnabled = true;
 
@@ -27,43 +27,43 @@ void setRCEnabled(bool state) {
 void updateRCWinch() {
   int winchPos = pulseIn(CHANNEL_WINCH, HIGH, RC_STD_TIMEOUT); // Get winch pulse value
   if (winchPos > 1000) {
-    winchPos = smooth(winchPos, oldWinchPos, (millis() - lastRCMillis)); // Perform exponential smoothing to reduce twitching
+    winchPos = smooth(winchPos, oldWinchPos); // Perform exponential smoothing to reduce twitching
     oldWinchPos = winchPos; // Save current winch position for future exponential smoothing
-    winchPos = constrain(winchPos, WINCH_PULSE_LOW, WINCH_PULSE_HIGH); //Trim bottom and upper end
-    winchPos = map(winchPos,WINCH_PULSE_HIGH,WINCH_PULSE_LOW,180,0); // Map the winch pulse value to a number between 0-180 for the servo library
+    winchPos = map(winchPos, WINCH_PULSE_HIGH, WINCH_PULSE_LOW, 180, 0); // Map the winch pulse value to a number between 0-180 for the servo library
     moveWinch(winchPos); // Move the winch
-  }else{
-    DEBUG_PRINTLN("RC winch offline");
+  } else {
+    DEBUG_PRINTLN("RC Winch offline");
   }
 }
 
 void updateRCRudders() {
-  const int RudderMiddle = 0.5 * RUDDER_PULSE_HIGH + 0.5 * RUDDER_PULSE_LOW; // Calculate the centre value for the pulses, used to catch dead-band signals later
   int rudderPos = pulseIn(CHANNEL_RUDDERS, HIGH, RC_STD_TIMEOUT); // Get rudder pulse value
   if (rudderPos != 0) {
-    rudderPos = smooth(rudderPos, oldRudderPos, (millis() - lastRCMillis)); // Perform exponential smoothing to reduce twitching
-    rudderPos = constrain(rudderPos, RUDDER_PULSE_LOW, RUDDER_PULSE_HIGH); //Trim bottom and upper end
-    if (rudderPos <= (RudderMiddle + RUDDER_DEAD_WIDTH / 2) && rudderPos >= (RudderMiddle - RUDDER_DEAD_WIDTH / 2)) rudderPos = RudderMiddle; // Catch dead-band signals    
-    rudderPos = map(rudderPos,WINCH_PULSE_HIGH,WINCH_PULSE_LOW,180,0); // Map the rudder pulse value to a number between 0-180 for the servo library
-    moveRudder(rudderPos); // Move the rudder
+    rudderPos = smooth(rudderPos, oldRudderPos); // Perform exponential smoothing to reduce twitching
     oldRudderPos = rudderPos; // Save current rudder position for future exponential smoothing
-  }else{
-    DEBUG_PRINTLN(F("RC rudder offline"));
+    if (rudderPos <= (RUDDER_CENTER + RUDDER_DEAD_WIDTH / 2) && rudderPos >= (RUDDER_CENTER - RUDDER_DEAD_WIDTH / 2)) rudderPos = RUDDER_CENTER; // Catch dead-band signals
+    rudderPos = map(rudderPos, WINCH_PULSE_HIGH, WINCH_PULSE_LOW, 180, 0); // Map the rudder pulse value to a number between 0-180 for the servo library
+    moveRudder(rudderPos); // Move the rudder
+  } else {
+    DEBUG_PRINTLN(F("RC Rudder offline"));
   }
 }
 
 void checkRC() {
   // Wrapper function to improve code readability in the main loop and also rate limit RC updating
   if (millis() - lastRCMillis >= RC_MIN_DELAY && rcEnabled) {
-    updateRCWinch();
-    updateRCRudders();
+    if (pulseIn(CHANNEL_RUDDERS, HIGH, RC_STD_TIMEOUT) > 2) {
+      updateRCWinch();
+      updateRCRudders();
+    } else {
+      DEBUG_PRINTLN(F("RC offline"));
+    }
     lastRCMillis = millis();
   }
 }
 
-float smooth(float cur, float prev, float chng) {
+int smooth(int cur, int prev) {
   // Function that performs exponential smoothing given the current value, previous value, the time change and the time constant
-  float w = min(1., chng / RC_SMOOTHING_CONS);
-  float w1 = 1.0 - w;
-  return (w1 * prev + w * cur);
+  float smoothed = RC_SMOOTHING_CONS * cur + (1.0 - RC_SMOOTHING_CONS) * prev;
+  return smoothed;
 }
